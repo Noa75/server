@@ -1,0 +1,299 @@
+﻿<!DOCTYPE html>
+<html lang="he">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relocation App</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            direction: rtl;
+            text-align: center;
+        }
+
+        form {
+            max-width: 300px;
+            margin: auto;
+        }
+
+        label {
+            display: block;
+            margin: 10px 0 5px;
+        }
+
+        input, select, button {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+
+        button {
+            background-color: blue;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        .hidden {
+            display: none;
+        }
+        /* Personal Area Styles */
+        #personalArea {
+            margin: 20px auto;
+            padding: 20px;
+            max-width: 600px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: #f9f9f9;
+            text-align: left;
+        }
+
+            #personalArea h2 {
+                margin-bottom: 20px;
+                font-size: 24px;
+                color: #333;
+            }
+        #relocationDetailsDisplay, #userCategories {
+            margin-bottom: 20px;
+        }
+
+            #relocationDetailsDisplay p, #userCategories div {
+                margin: 10px 0;
+                padding: 10px;
+                background-color: #fff;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }
+    </style>
+</head>
+<body>
+
+    <h1>Relocation App</h1>
+    <!-- Login page -->
+    <section id="login">
+        <h2>Login</h2>
+        <form id="loginForm">
+            <label for="loginUsername">Username:</label>
+            <input type="text" id="loginUsername" required><br>
+            <label for="loginPassword">Password:</label>
+            <input type="password" id="loginPassword" required><br>
+            <button type="submit">Login</button>
+        </form>
+        <button id="registerButton">Register</button>
+        <p id="loginResult"></p>
+    </section>
+
+    <!-- Registration page -->
+    <section id="registration" class="hidden">
+        <h2>Register</h2>
+        <form id="registerForm">
+            <label for="fullName">Full Name:</label>
+            <input type="text" id="fullName" required><br>
+            <label for="username">Username:</label>
+            <input type="text" id="username" required><br>
+            <label for="email">Email:</label>
+            <input type="email" id="email" required><br>
+            <label for="password">Password:</label>
+            <input type="password" id="password" required><br>
+            <button type="submit">Register</button>
+        </form>
+        <p id="registrationResult"></p>
+    </section>
+
+    <!-- Relocation details page -->
+    <section id="relocationDetails" class="hidden">
+        <h2>Relocation Details</h2>
+        <form id="relocationForm">
+            <label for="destinationCountry">Destination Country:</label>
+            <select id="destinationCountry" required></select><br>
+            <label for="moveDate">Move Date:</label>
+            <input type="date" id="moveDate" required><br>
+            <label for="hasChildren">Has Children:</label>
+            <input type="checkbox" id="hasChildren"><br>
+            <label for="categories">Select Categories:</label>
+            <select id="categories" multiple required></select><br>
+            <button type="submit">Submit Relocation Details</button>
+        </form>
+        <p id="relocationResult"></p>
+    </section>
+
+    <!-- Personal area -->
+    <section id="personalArea" class="hidden">
+        <h2>Personal Area</h2>
+        <div id="relocationDetailsDisplay"></div>
+        <div id="userCategories"></div>
+    </section>
+
+    <script>
+        let userId;
+
+        document.getElementById('registerButton').addEventListener('click', function () {
+            document.getElementById('login').classList.add('hidden');
+            document.getElementById('registration').classList.remove('hidden');
+        });
+
+        document.getElementById('registerForm').addEventListener('submit', async function (event) {
+            event.preventDefault();
+            const fullName = document.getElementById('fullName').value;
+            const username = document.getElementById('username').value;
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                const response = await fetch('http://localhost:5231/api/register/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ fullName, username, email, passwordHash: password })
+                });
+
+                const result = await response.json();
+                if (response.ok) {
+                    userId = result.user.userId;  // Save userId for later use
+                    document.getElementById('registrationResult').innerText = 'Registration successful!';
+                    document.getElementById('registration').classList.add('hidden');
+                    document.getElementById('relocationDetails').classList.remove('hidden');
+                    loadCountries();
+                    loadCategories();
+                } else {
+                    document.getElementById('registrationResult').innerText = `Registration failed: ${result.message}`;
+                }
+            } catch (error) {
+                document.getElementById('registrationResult').innerText = `Registration failed: ${error.message}`;
+            }
+        });
+
+
+
+        document.getElementById('loginForm').addEventListener('submit', async function (event) {
+            event.preventDefault();
+            const username = document.getElementById('loginUsername').value;
+            const password = document.getElementById('loginPassword').value;
+
+            try {
+                const response = await fetch('http://localhost:5231/api/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+
+                const result = await response.json();
+                if (response.ok) {
+                    userId = result.userId;  // Save userId for later use
+                    document.getElementById('loginResult').innerText = 'Login successful!';
+                    loadUserDetails();
+                } else {
+                    document.getElementById('loginResult').innerText = `Login failed: ${result.message}`;
+                }
+            } catch (error) {
+                document.getElementById('loginResult').innerText = `Login failed: ${error.message}`;
+            }
+        });
+
+        
+        //Get the countries names from the data base
+        async function loadCountries() {
+            try {
+                const response = await fetch('http://localhost:5231/api/get');
+                const countries = await response.json();
+                const dropdown = document.getElementById('destinationCountry');
+                dropdown.innerHTML = ''; // Clear any existing options
+                countries.forEach(country => {
+                    const option = document.createElement('option');
+                    option.textContent = country.countryName;
+                    option.value = country.id; // Add value attribute for better handling
+                    dropdown.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading countries:', error);
+            }
+        }
+
+
+        //Get the categories names from the data base
+        async function loadCategories() {
+            try {
+                const response = await fetch('http://localhost:5231/api/categories');
+                const categories = await response.json();
+                const dropdown = document.getElementById('categories');
+                dropdown.innerHTML = ''; // Clear any existing options
+                categories.forEach(category => {
+                    const option = document.createElement('option');
+                    option.textContent = category.categoryName;
+                    option.value = category.categoryId; // Add value attribute for better handling
+                    dropdown.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading categories:', error);
+            }
+        }
+
+        document.getElementById('relocationForm').addEventListener('submit', async function (event) {
+            event.preventDefault();
+            const destinationCountry = document.getElementById('destinationCountry').value;
+            const moveDate = document.getElementById('moveDate').value;
+            const hasChildren = document.getElementById('hasChildren').checked;
+            const selectedCategories = Array.from(document.getElementById('categories').selectedOptions).map(option => option.value);
+
+            try {
+                const response = await fetch('http://localhost:5231/api/details', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ userId, destinationCountry, moveDate, hasChildren, selectedCategories })
+                });
+
+                const result = await response.json();
+                if (response.ok) {
+                    document.getElementById('relocationResult').innerText = 'Relocation details submitted!';
+                } else {
+                    document.getElementById('relocationResult').innerText = `Submission failed: ${result.message}`;
+                }
+            } catch (error) {
+                document.getElementById('relocationResult').innerText = `Submission failed: ${error.message}`;
+            }
+        });
+
+
+
+
+
+        //Insert the personal details 
+        async function loadUserDetails() {
+            try {
+                const response = await fetch(`http://localhost:5231/api/userdetails/${userId}`);
+                const details = await response.json();
+
+                // Display relocation details
+                const relocationDetailsDiv = document.getElementById('relocationDetailsDisplay');
+                relocationDetailsDiv.innerHTML = `
+                        <p>Destination Country: ${details.relocationDetails.destinationCountry}</p>
+                        <p>Move Date: ${details.relocationDetails.moveDate}</p>
+                        <p>Has Children: ${details.relocationDetails.hasChildren}</p>
+                     
+                    `;
+
+                // Display user categories
+                const userCategoriesDiv = document.getElementById('userCategories');
+                userCategoriesDiv.innerHTML = '<p>Categories</p>'; 
+                details.categories.forEach(category => {
+                    const div = document.createElement('div');
+                    div.textContent = category.categoryName;
+                    userCategoriesDiv.appendChild(div);
+
+
+                });
+
+                document.getElementById('personalArea').classList.remove('hidden');
+                document.getElementById('login').classList.add('hidden');
+            } catch (error) {
+                console.error('Error loading user details:', error);
+            }
+        }
+    </script>
+</body>
+</html>
